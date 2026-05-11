@@ -1,0 +1,244 @@
+name: Issue Workflow (via OpenCode/Claude)
+
+on:
+  issues:
+    types: [labeled]
+  issue_comment:
+    types: [created]
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  AI_CLIENT: ${{ vars.AI_CLIENT || 'opencode' }}
+  AI_MODEL: ${{ vars.AI_MODEL || 'alibaba-cn/glm-5' }}
+  AI_EXTRA_ARGS: ${{ vars.AI_EXTRA_ARGS || '--dangerously-skip-permissions' }}
+  OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+
+jobs:
+  # ===================== 需求分析 =====================
+  requirement-analysis:
+    if: github.event.action == 'labeled' && github.event.label.name == 'accept'
+    runs-on: [self-hosted]
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Requirements Agent
+        uses: ./.github/actions/run-agent
+        with:
+          agent_file: .github/agents/requirements.md
+          repository: ${{ github.repository }}
+          issue_number: ${{ github.event.issue.number }}
+          context_json: ${{ toJson(github.event.issue) }}
+          instruction: "请根据该 Issue 输出需求分析文档，包含功能描述、验收标准、边界条件和非功能需求。并将文档内容写入文件：/tmp/opencode/<repo>-<issue_id>/requirements-analysis.md"
+          output_filename: "requirements-analysis.md"
+
+
+  # ========== 架构设计 + 自动评审 + 迭代修正 ==========
+  architecture-design-with-auto-review:
+    if: github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '/design')
+    runs-on: [self-hosted]
+    timeout-minutes: 10
+    env:
+      MAX_RETRIES: 3
+    steps:
+      - uses: actions/checkout@v4
+
+      # ---------- 第一步：准备工作目录并检测设计状态 ----------
+      - name: Prepare work directory
+        id: prepare
+        shell: bash
+        run: |
+          REPO_NAME="${{ github.repository }}"
+          REPO_SHORT=$(echo "$REPO_NAME" | sed 's|.*/||')
+          ISSUE_NUM="${{ github.event.issue.number }}"
+          WORK_DIR="/tmp/opencode/${REPO_SHORT}-${ISSUE_NUM}"
+          mkdir -p "$WORK_DIR"
+          echo "work_dir=$WORK_DIR" >> $GITHUB_OUTPUT
+          echo "WORK_DIR=$WORK_DIR" >> $GITHUB_ENV
+          
+          # 检测设计文档是否已存在
+          DESIGN_FILE="$WORK_DIR/architecture-design.md"
+          if [ -f "$DESIGN_FILE" ]; then
+            echo "design_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "design_exists=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Run Design Agent
+        id: design
+        uses: ./.github/actions/run-agent
+        with:
+          agent_file: .github/agents/designer.md
+          repository: ${{ github.repository }}
+          issue_number: ${{ github.event.issue.number }}
+          context_json: |
+            {
+              "issue": ${{ toJson(github.event.issue) }},
+              "comment": {
+                "body": ${{ toJson(github.event.comment.body) }},
+                "user": ${{ toJson(github.event.comment.user) }}
+              },
+              "design_exists": ${{ steps.prepare.outputs.design_exists == 'true' }}
+            }
+          instruction: "根据已通过的需求，输出系统架构设计。注意：design_exists=${{ steps.prepare.outputs.design_exists }}"
+          output_filename: "architecture-design.md"
+
+      # ---------- 第二步：循环评审 + 修正 ----------
+      - name: Review and revise in loop
+        shell: bash
+        run: |
+          DESIGN_FILE="$WORK_DIR/architecture-design.md"
+          
+          for i in $(seq 1 $MAX_RETRIES); do
+            echo "===== Review iteration $i ====="
+
+            # 调用评审 Agent（agent 会将评审结果写入文件）
+            REVIEW_FILE="$WORK_DIR/review-${i}.md"
+            opencode run - \
+              --model ${{ env.AI_MODEL }} \
+              --agent build \
+              ${{ env.AI_EXTRA_ARGS }} <<< "$(cat .github/agents/design-reviewer.md)
+
+              当前设计文档：
+              $(cat "$DESIGN_FILE")
+
+              请评审，并将评审结果写入文件：$REVIEW_FILE
+            "
+
+            # 将评审结果追加到 Issue 评论（直接从文件读取）
+            gh issue comment ${{ github.event.issue.number }} --body-file "$REVIEW_FILE"
+
+            # 判断是否通过（评审输出中包含"通过"且不含"不通过"）
+            if grep -q "通过" "$REVIEW_FILE" && ! grep -q "不通过" "$REVIEW_FILE"; then
+              echo "设计已通过评审！"
+              break
+            fi
+
+            # 未通过：调用设计 Agent 携带评审意见修改（agent 会将修改后的设计写入文件）
+            echo "设计未通过，正在根据评审意见修改..."
+            opencode run - \
+              --model ${{ env.AI_MODEL }} \
+              --agent build \
+              ${{ env.AI_EXTRA_ARGS }} <<< "$(cat .github/agents/designer.md)
+
+              原始设计：
+              $(cat "$DESIGN_FILE")
+
+              评审意见：
+              $(cat "$REVIEW_FILE")
+
+              请根据评审意见修改设计，并将完整的新设计文档写入文件：$DESIGN_FILE
+            "
+          done
+
+          # 将最终设计内容输出，供后续步骤使用
+          echo "FINAL_DESIGN_FILE=$DESIGN_FILE" >> $GITHUB_ENV
+
+      # ---------- 第三步：发布最终设计并打标签 ----------
+      - name: Post final design as comment
+        shell: bash
+        run: |
+          gh issue comment ${{ github.event.issue.number }} --body-file "$FINAL_DESIGN_FILE"
+
+
+  # ===================== 开发实现 =====================
+  implementation:
+    if: github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '/develop')
+    runs-on: [self-hosted]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ---------- 第一步：准备工作目录 ----------
+      - name: Prepare work directory and branch
+        id: prepare
+        shell: bash
+        run: |
+          REPO_NAME="${{ github.repository }}"
+          REPO_SHORT=$(echo "$REPO_NAME" | sed 's|.*/||')
+          ISSUE_NUM="${{ github.event.issue.number }}"
+          WORK_DIR="/tmp/opencode/${REPO_SHORT}-${ISSUE_NUM}"
+          BRANCH_NAME="feature/issue-${ISSUE_NUM}"
+          
+          mkdir -p "$WORK_DIR"
+          echo "work_dir=$WORK_DIR" >> $GITHUB_OUTPUT
+          echo "WORK_DIR=$WORK_DIR" >> $GITHUB_ENV
+          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
+          
+          # 检查并创建/切换分支
+          if git show-ref --verify --quiet "refs/remotes/origin/$BRANCH_NAME"; then
+            echo "📝 分支 $BRANCH_NAME 存在于远程，检出并更新..."
+            git checkout -b "$BRANCH_NAME" "origin/$BRANCH_NAME"
+            git pull origin "$BRANCH_NAME" || true
+            echo "branch_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "✨ 创建新分支 $BRANCH_NAME"
+            git checkout -b "$BRANCH_NAME"
+            echo "branch_exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      # ---------- 第二步：检查设计文档是否存在 ----------
+      - name: Check design document exists
+        shell: bash
+        run: |
+          DESIGN_FILE="$WORK_DIR/architecture-design.md"
+          
+          if [ ! -f "$DESIGN_FILE" ]; then
+            echo "❌ 错误：设计文档不存在，请先运行 /design 命令生成设计文档"
+            gh issue comment ${{ github.event.issue.number }} --body "❌ 开发失败：设计文档不存在。请先使用 \`/design\` 命令生成并通过评审后再执行开发。"
+            exit 1
+          fi
+
+      # ---------- 第三步：执行开发 Agent ----------
+      - name: Run Developer Agent
+        id: develop
+        uses: ./.github/actions/run-agent
+        with:
+          agent_file: .github/agents/developer.md
+          repository: ${{ github.repository }}
+          issue_number: ${{ github.event.issue.number }}
+          context_json: |
+            {
+              "issue": ${{ toJson(github.event.issue) }},
+              "comment": {
+                "body": ${{ toJson(github.event.comment.body) }},
+                "user": ${{ toJson(github.event.comment.user) }}
+              },
+              "branch_exists": ${{ steps.prepare.outputs.branch_exists == 'true' }}
+            }
+          instruction: "根据设计文档实现代码。注意：branch_exists=${{ steps.prepare.outputs.branch_exists }}"
+
+      # ---------- 第四步：创建 Pull Request ----------
+      - name: Create Pull Request
+        id: create_pr
+        uses: ./.github/actions/create-pr
+        with:
+          repository: ${{ github.repository }}
+          issue_number: ${{ github.event.issue.number }}
+          issue_title: ${{ github.event.issue.title }}
+          issue_url: ${{ github.event.issue.html_url }}
+          branch_base: main
+
+
+  # ===================== 手动创建 PR =====================
+  manual-create-pr:
+    if: github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '/create-pr')
+    runs-on: [self-hosted]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create Pull Request
+        uses: ./.github/actions/create-pr
+        with:
+          repository: ${{ github.repository }}
+          issue_number: ${{ github.event.issue.number }}
+          issue_title: ${{ github.event.issue.title }}
+          issue_url: ${{ github.event.issue.html_url }}
+          branch_base: main
+
