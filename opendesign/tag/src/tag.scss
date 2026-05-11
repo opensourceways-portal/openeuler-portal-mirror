@@ -1,0 +1,100 @@
+@import './var.scss';
+
+.e-tag {
+  padding: var(--e-tag-padding);
+  font-size: var(--e-tag-font-size);
+  line-height: var(--e-tag-line-height);
+  color: var(--e-tag-font-color);
+  border: var(--e-tag-border);
+  outline: none;
+  user-select: none;
+  cursor: default;
+  display: inline-block;
+  border-radius: 0;
+
+  &:active {
+    @media screen and (min-width: 1100px) {
+      color: var(--e-tag-font-color_active);
+      border: var(--e-tag-font-color_active);
+    }
+  }
+
+  &.o-tag-type-primary {
+    color: var(--e-tag-font-color-primary);
+    border: var(--e-tag-border-primary);
+    &:hover {
+      @media screen and (min-width: 1100px) {
+        color: var(--e-color-brand2);
+        border: var(--e-tag-border-primary_hover);
+      }
+    }
+    &.o-tag-checked {
+      position: relative;
+      .checked-icon {
+        position: absolute;
+        bottom: 0;
+        right: 0;
+        width: 16px;
+        height: 16px;
+        &::after {
+          border: 8px solid transparent;
+          border-right: 8px solid var(--e-color-brand1);
+          border-bottom: 8px solid var(--e-color-brand1);
+          content: '';
+          width: 16px;
+          height: 16px;
+          position: absolute;
+          bottom: -1px;
+          right: -1px;
+          display: block;
+          z-index: 1;
+        }
+        svg {
+          width: 9px;
+          height: 9px;
+          color: #fff;
+          display: block;
+          position: absolute;
+          bottom: 0;
+          right: 0;
+          z-index: 2;
+        }
+      }
+    }
+  }
+  &.o-tag-checkable {
+    cursor: pointer;
+  }
+  &.o-tag-type-secondary {
+    color: var(--e-tag-font-color-secondary);
+    border: var(--e-tag-border-secondary);
+    line-height: var(--e-tag-small-line-height);
+    padding: var(--e-tag-secondary-padding);
+    background: var(--e-tag-bg-color-secondary);
+  }
+
+  &.o-tag-type-text {
+    color: var(--e-tag-font-color);
+    border: var(--e-tag-border-text);
+    background: none;
+    &:hover,
+    &:active {
+      @media screen and (min-width: 1100px) {
+        color: var(--e-tag-font-color_hover);
+      }
+    }
+  }
+  &.o-tag-size-small {
+    padding: var(--e-tag-small-padding);
+    font-size: var(--e-tag-small-font-size);
+    line-height: var(--e-tag-small-line-height);
+
+    &:hover,
+    &:active {
+      @media screen and (min-width: 1100px) {
+        color: var(--e-tag-font-color);
+        border: var(--e-tag-border);
+      }
+    }
+  }
+}
