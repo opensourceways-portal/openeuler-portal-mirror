@@ -1,0 +1,13 @@
+---
+title: '4月21日哪里去？openEuler Developer Day 2023 多样性计算分论坛考虑一下！'
+date: '2023-04-07'
+category: news
+tags:
+  - openEuler
+banner: 'img/banners/20230323-odd.jpg'
+author: 'openEuler'
+summary: 'openEuler Developer Day 2023 多样性计算分论坛考虑一下！'
+---
+
+
+<img src="./1.png" width="500" >

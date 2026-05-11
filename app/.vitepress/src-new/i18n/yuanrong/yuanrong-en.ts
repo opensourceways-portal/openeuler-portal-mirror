@@ -1,0 +1,17 @@
+export default {
+  title: 'openYuanrong',
+  subtitle: 'Single-machine coding, distributed execution',
+  introTitle: 'Overview',
+  introDesc: 'openYuanrong is a Serverless distributed compute engine that unifies diverse applications, from AI and big data to microservices, on a single, streamlined architecture. It provides multi-language function interfaces that simplify the development of complex distributed applications to feel just like writing a local program. Powered by dynamic scheduling and efficient data sharing, openYuanrong ensures high-performance execution and maximum cluster resource utilization.',
+  frameworkTitle: 'Architecture',
+  frameworkDesc: 'Modular, on-demand usage of a multi-language function runtime, function system, and data system',
+  multilingual: 'Multi-language Function Runtime',
+  multilingualDesc: 'Build powerful, distributed applications in Python, Java, and C++ as easily as you would write a program for a single machine.',
+  functionSystem: 'Function System',
+  functionSystemDesc: 'Maximize cluster resource utilization with dynamic scheduling, which seamlessly scales and migrates function instances across nodes.',
+  dataSystem: 'Data System',
+  dataSystemDesc: 'Accelerate data transfer between function instances using a multi-level distributed caching system that supports both object and stream semantics.',
+  functionDesc: 'In openYuanrong, the function is a core concept that extends the Serverless model. It behaves like a process in a single-machine OS, representing a running instance of a distributed application while offering native support for inter-function calls.',
+  entranceTitle: 'Related Links',
+  viewMore: 'View More',
+}

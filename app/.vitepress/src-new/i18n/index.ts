@@ -1,0 +1,167 @@
+import { computed } from 'vue';
+import { createI18n, type I18nOptions } from 'vue-i18n';
+import { useData } from 'vitepress';
+
+// 公共模块
+import response from './response';
+import cookie from './cookie';
+import header from './header';
+import footer from './footer';
+import common from './common';
+import search from './search';
+// 业务
+import talentAssessment from './talent-assessment';
+import contactUs from './contact-us';
+import home from './home';
+import download from './download';
+import safetyBulletin from './safety-bulletin';
+import cve from './cve';
+import eventOverview from './event-overview';
+import usergroup from './user-group';
+import intelligence from './intelligence';
+import sig from './sig';
+import mailing from './mailing';
+import onlineMeeting from './online-meeting';
+import defectCenter from './defect-center';
+import brand from './brand'
+import yuanrong from './yuanrong'
+import project from './project'
+import ubServiceCore from './ub-service-core';
+import ubOsComponent from './ub-os-component'
+import intelligenceBoom from './intelligence-boom'
+import blog from './blog';
+import news from './news';
+import compatibility from './compatibility';
+import showcase from './showcase';
+import lifecycle from './lifecycle';
+import bishengJdk from './bisheng-jdk';
+import nestos from './nestos';
+
+import { getCurrentLocale } from '~@/utils/locale';
+
+const datetimeFormats: I18nOptions['datetimeFormats'] = {
+  zh: {
+    short: {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    },
+    long: {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: true,
+    },
+  },
+  en: {
+    short: {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    },
+    long: {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: true,
+    },
+  },
+};
+
+const messages = {
+  zh: {
+    // 公共模块
+    response: response.zh,
+    cookie: cookie.zh,
+    header: header.zh,
+    footer: footer.zh,
+    common: common.zh,
+    search: search.zh,
+
+    // 业务
+    talent: talentAssessment.zh,
+    contact: contactUs.zh,
+    home: home.zh,
+    download: download.zh,
+    safetyBulletin: safetyBulletin.zh,
+    cve: cve.zh,
+    eventOverview: eventOverview.zh,
+    usergroup: usergroup.zh,
+    intelligence: intelligence.zh,
+    sig: sig.zh,
+    mailing: mailing.zh,
+    onlineMeeting: onlineMeeting.zh,
+    defectCenter: defectCenter.zh,
+    brand: brand.zh,
+    yuanrong: yuanrong.zh,
+    project: project.zh,
+    ubServiceCore: ubServiceCore.zh,
+    ubOsComponent: ubOsComponent.zh,
+    intelligenceBoom: intelligenceBoom.zh,
+    blog: blog.zh,
+    news: news.zh,
+    compatibility: compatibility.zh,
+    showcase: showcase.zh,
+    lifecycle: lifecycle.zh,
+    bishengJdk: bishengJdk.zh,
+    nestos: nestos.zh,
+  },
+  en: {
+    // 公共模块
+    response: response.en,
+    cookie: cookie.en,
+    header: header.en,
+    footer: footer.en,
+    common: common.en,
+    search: search.en,
+
+    // 业务
+    talent: talentAssessment.en,
+    contact: contactUs.en,
+    home: home.en,
+    download: download.en,
+    safetyBulletin: safetyBulletin.en,
+    cve: cve.en,
+    eventOverview: eventOverview.en,
+    intelligence: intelligence.en,
+    sig: sig.en,
+    mailing: mailing.en,
+    defectCenter: defectCenter.en,
+    brand: brand.en,
+    yuanrong: yuanrong.en,
+    project: project.en,
+    ubServiceCore: ubServiceCore.en,
+    ubOsComponent: ubOsComponent.en,
+    intelligenceBoom: intelligenceBoom.en,
+    blog: blog.en,
+    news: news.en,
+    compatibility: compatibility.en,
+    showcase: showcase.en,
+    lifecycle: lifecycle.en,
+    bishengJdk: bishengJdk.en,
+    nestos: nestos.en,
+  },
+};
+
+const locale = getCurrentLocale();
+
+const i18n = createI18n({
+  globalInjection: true,
+  locale,
+  legacy: false,
+  fallbackLocale: 'zh',
+  messages,
+  datetimeFormats,
+});
+
+// TODO: 使用composables的 useLocale,对象放在 data 里面
+export function useI18n() {
+  const { lang } = useData();
+  return computed(() => messages[lang.value]);
+}
+
+export default i18n;
