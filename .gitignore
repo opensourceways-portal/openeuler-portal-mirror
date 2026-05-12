@@ -122,3 +122,8 @@ app/.vitepress/cache
 app/.vitepress/.cache
 app/.vitepress/.temp
 app/.vitepress/dist
+
+# Claude Code
+.claude/settings.local.json
+docs/sessions/
+
