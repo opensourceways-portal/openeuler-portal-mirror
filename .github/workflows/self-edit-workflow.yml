@@ -1,4 +1,4 @@
-name: Portal Self-Service Workflow (via OpenCode/Claude)
+name: Self-Edit Workflow (via OpenCode/Claude)
 
 on:
   issues:
