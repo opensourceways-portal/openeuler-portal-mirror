@@ -10,6 +10,8 @@ import IconEmailFill from '~icons/app/icon-email-fill.svg';
 
 import IconGit from '@/assets/category/organization/icon-git.svg';
 
+import { sortByPinyin } from '~@/utils/sort';
+
 const { lang } = useData();
 
 const organizationData: any = computed(() => {
@@ -18,6 +20,24 @@ const organizationData: any = computed(() => {
   } else {
     return ORGANIZATION_DATA.zh;
   }
+});
+
+const sortedMemberList = computed(() => {
+  const list = organizationData.value.memberList;
+  if (!list || list.length < 5) return list;
+  
+  const sortedList = [...list];
+  const userCommittee = sortedList[4];
+  const chairmanTitle = lang.value === 'en' ? 'Chairperson' : '主席';
+  
+  if (userCommittee && userCommittee.list) {
+    sortedList[4] = {
+      ...userCommittee,
+      list: sortByPinyin(userCommittee.list, chairmanTitle)
+    };
+  }
+  
+  return sortedList;
 });
 </script>
 
@@ -80,7 +100,7 @@ const organizationData: any = computed(() => {
       </li>
     </ul>
     <template
-      v-for="(groupInfo, index) in organizationData.memberList.slice(3)"
+      v-for="(groupInfo, index) in sortedMemberList.slice(3)"
     >
       <h2 :id="organizationData.idList[index + 3]" class="council-counselor">
         {{ groupInfo.title }}
