@@ -699,7 +699,7 @@ export default {
         list: [
           { img: zhenzhengyu, name: '郑振宇', position: ['组长'] },
           { img: huxiaojie, name: '胡骁杰', position: ['副组长'] },
-          { img: chenjing, name: '陈静', position: ['组员'] },
+          { img: chenjing, name: '陈静', position: ['组长'] },
           { img: liuhuajie, name: '刘华杰', position: ['组员'] },
           { img: liming, name: '刘敏', position: ['组员'] },
           { img: liumingjie, name: '刘明杰', position: ['组员'] },
@@ -1352,7 +1352,7 @@ export default {
         list: [
           { img: zhenzhengyu, name: 'Zheng Zhenyu', position: ['Lead'] },
           { img: huxiaojie, name: 'Hu Xiaojie', position: ['Co-Lead'] },
-          { img: chenjing, name: 'Chen Jing', position: ['Member'] },
+          { img: chenjing, name: 'Chen Jing', position: ['Lead'] },
           { img: liuhuajie, name: 'Liu Huajie', position: ['Member'] },
           { img: liming, name: 'Liu Min', position: ['Member'] },
           { img: liumingjie, name: 'Liu Mingjie', position: ['Member'] },
