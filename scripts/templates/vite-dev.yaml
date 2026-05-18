@@ -1,0 +1,141 @@
+# dev-pod 模式：每 PR 一个 VitePress dev pod + ClusterIP Service + nginx Ingress
+# 由 scripts/pr-preview.js 渲染，替换 ${...} 占位变量。
+#
+# 入口：https://${INGRESS_HOST}/
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ${NAME}
+  namespace: ${NAMESPACE}
+  labels:
+    app: preview
+    role: frontend
+    repo: "${SLUG}"
+    pr: "${ISSUE}"
+    managed-by: pr-preview
+  annotations:
+    preview.osinfra.cn/repo: "${REPO_FULL}"
+    preview.osinfra.cn/branch: "${BRANCH}"
+    preview.osinfra.cn/sha: "${SHA}"
+    preview.osinfra.cn/url: "https://${INGRESS_HOST}/"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: preview
+      repo: "${SLUG}"
+      pr: "${ISSUE}"
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: preview
+        role: frontend
+        repo: "${SLUG}"
+        pr: "${ISSUE}"
+        managed-by: pr-preview
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      imagePullSecrets:
+      - name: huawei-swr-image-pull-secret
+      containers:
+      - name: app
+        image: ${IMAGE}
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: BRANCH
+          value: "${BRANCH}"
+        - name: REPO_URL
+          value: "${REPO_CLONE_URL}"
+        - name: PORT
+          value: "${HEALTH_PORT}"
+        command:
+        - /bin/bash
+        - -c
+        - |
+          set -e
+          WORKDIR=/tmp/app
+          TOK="$(cat /run/secrets/clone/token 2>/dev/null || true)"
+          HOSTPATH="$(printf '%s' "$REPO_URL" | sed -E 's#^https?://##')"
+          git clone --depth 1 --branch "$BRANCH" "https://x-access-token:${TOK}@${HOSTPATH}" "$WORKDIR"
+          cd "$WORKDIR"
+          ${VITE_PATCH}
+          (command -v pnpm >/dev/null || npm install -g pnpm)
+          pnpm install --no-frozen-lockfile
+          pnpm dev --port "$PORT" --host 0.0.0.0
+        resources:
+          limits: { cpu: "1", memory: 2Gi }
+          requests: { cpu: "500m", memory: 1Gi }
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ALL]
+        volumeMounts:
+        - name: clone-token
+          mountPath: /run/secrets/clone
+          readOnly: true
+      volumes:
+      - name: clone-token
+        secret: { secretName: ${CLONE_SECRET}, optional: true }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ${NAME}
+  namespace: ${NAMESPACE}
+  labels:
+    app: preview
+    role: frontend
+    repo: "${SLUG}"
+    pr: "${ISSUE}"
+    managed-by: pr-preview
+spec:
+  type: ClusterIP
+  selector:
+    app: preview
+    repo: "${SLUG}"
+    pr: "${ISSUE}"
+  ports:
+  - name: http
+    port: ${HEALTH_PORT}
+    targetPort: ${HEALTH_PORT}
+    protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ${NAME}
+  namespace: ${NAMESPACE}
+  labels:
+    app: preview
+    role: frontend
+    repo: "${SLUG}"
+    pr: "${ISSUE}"
+    managed-by: pr-preview
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+spec:
+  ingressClassName: ${INGRESS_CLASS}
+  tls:
+  - hosts:
+    - ${INGRESS_HOST}
+    secretName: ${TLS_SECRET}
+  rules:
+  - host: ${INGRESS_HOST}
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: ${NAME}
+            port:
+              number: ${HEALTH_PORT}

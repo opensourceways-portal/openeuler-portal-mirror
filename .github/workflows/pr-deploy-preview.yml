@@ -1,0 +1,92 @@
+name: PR 预览部署
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: 'PR 号'
+        required: true
+      action:
+        description: 'deploy / cleanup / status'
+        required: false
+        default: deploy
+
+concurrency:
+  group: pr-deploy-${{ github.event.pull_request.number || github.event.inputs.pr }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  deploy:
+    # 仅同仓库 PR 触发(避免 fork PR 滥用)
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted]
+    timeout-minutes: 20
+    env:
+      TARGET_PR: ${{ github.event.pull_request.number || github.event.inputs.pr }}
+      ACTION: ${{ (github.event_name == 'pull_request' && github.event.action == 'closed') && 'cleanup' || github.event.inputs.action || 'deploy' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Prepare kubeconfig
+        shell: bash
+        env:
+          KCFG_B64: ${{ secrets.PREVIEW_KUBECONFIG_B64 }}
+        run: |
+          if [ -z "$KCFG_B64" ]; then
+            echo "::error::缺少 secret PREVIEW_KUBECONFIG_B64"
+            exit 1
+          fi
+          echo "$KCFG_B64" | base64 -d > /tmp/kubeconfig
+          chmod 600 /tmp/kubeconfig
+
+      - name: Run preview deployer
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          KUBECONFIG: /tmp/kubeconfig
+          PREVIEW_CLONE_TOKEN: ${{ secrets.PREVIEW_CLONE_TOKEN }}
+        run: |
+          node scripts/pr-preview.js "$ACTION" \
+            --pr "$TARGET_PR" \
+            --repo "${{ github.repository }}" \
+            --result-file /tmp/dr.json || echo "::warning::pr-preview $ACTION 非 0"
+
+      - name: Comment on PR
+        if: always() && env.ACTION != 'status'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ ! -s /tmp/dr.json ]; then
+            echo "(无结果文件，跳过评论)"
+            exit 0
+          fi
+          node -e "
+            const d = JSON.parse(require('fs').readFileSync('/tmp/dr.json', 'utf-8'));
+            const url = d.preview_url || '';
+            const ready = d.ready === 'true';
+            const cleanup = d.ready === 'cleanup';
+            let head;
+            if (cleanup) head = '## 🧹 预览已清理';
+            else if (ready && url) head = '## 🚢 预览部署\n\n**预览地址：' + url + '**';
+            else head = '## 🚢 预览部署';
+            process.stdout.write(head + (d.report ? '\n\n' + d.report : ''));
+          " > /tmp/prbody.md
+          gh pr comment "$TARGET_PR" --repo "${{ github.repository }}" --body-file /tmp/prbody.md || echo "::warning::PR 评论失败"
+
+      - name: Cleanup kubeconfig
+        if: always()
+        shell: bash
+        run: rm -f /tmp/kubeconfig
