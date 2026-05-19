@@ -7,7 +7,7 @@ import { kubectl, ghPrComment, log, ghaNotice, sleep } from './lib/kubectl.js';
 import { resolvePr, parseIssueFromBranch } from './lib/github.js';
 import { renderTemplate, stripEmptyTlsSecret, resolveTemplate } from './lib/render.js';
 
-const NAMESPACE = process.env.PREVIEW_NAMESPACE || 'ai-test';
+const NAMESPACE = process.env.PREVIEW_NAMESPACE || 'portal-preview';
 const DOMAIN = process.env.PREVIEW_DOMAIN || 'ai.test.osinfra.cn';
 const SLUG = process.env.PREVIEW_SLUG || 'portal';
 const IMAGE = process.env.PREVIEW_IMAGE || 'ghcr.io/opensourceways-test/opencode-dev:latest';
