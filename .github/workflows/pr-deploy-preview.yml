@@ -61,7 +61,7 @@ jobs:
           node scripts/pr-preview.js "$ACTION" \
             --pr "$TARGET_PR" \
             --repo "${{ github.repository }}" \
-            --result-file /tmp/dr.json || echo "::warning::pr-preview $ACTION 非 0"
+            --result-file /tmp/dr.json
 
       - name: Comment on PR
         if: always() && env.ACTION != 'status'
